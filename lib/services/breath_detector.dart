@@ -28,6 +28,12 @@ class BreathDetector {
   double _ambientNoiseLevel = 0.0;
   double _maxAmplitude = 1.0;
 
+  // New frequency characteristics for inhale/exhale differentiation
+  List<double> _inhaleFrequencyProfile = [];
+  List<double> _exhaleFrequencyProfile = [];
+  List<double> _currentFrequencyProfile = [];
+  bool _profilesCalibrated = false;
+
   // Breath state
   bool _isInhaling = false;
   bool _isExhaling = false;
@@ -50,14 +56,18 @@ class BreathDetector {
   DateTime? _lastPeakTime;
   DateTime? _lastBreathTime;
   final Duration _peakDebounceDuration = const Duration(milliseconds: 200);
-  final Duration _minInhaleDuration = const Duration(milliseconds: 200);   // Reduced from 400ms
-  final Duration _minExhaleDuration = const Duration(milliseconds: 150);   // Reduced from 400ms
-  final Duration _minBreathCycleDuration = const Duration(milliseconds: 500); // Reduced from 1200ms
-  final Duration _breathCountDebounce = const Duration(milliseconds: 800);  // Reduced from 1500ms
+  final Duration _minInhaleDuration = const Duration(milliseconds: 200);
+  final Duration _minExhaleDuration = const Duration(milliseconds: 150);
+  final Duration _minBreathCycleDuration = const Duration(milliseconds: 500);
+  final Duration _breathCountDebounce = const Duration(milliseconds: 1500);
 
   // Calibration data
   List<double> _recentAmplitudes = [];
   int _calibrationSamples = 30;
+
+  // Spectral characteristics buffer
+  List<double> _spectralBuffer = [];
+  int _spectralBufferSize = 10;
 
   BreathDetector({
     required this.onCalibrationStart,
@@ -87,6 +97,9 @@ class BreathDetector {
     _isCalibrating = true;
     _calibrationCompleted = false;
     _recentAmplitudes = [];
+    _profilesCalibrated = false;
+    _inhaleFrequencyProfile = [];
+    _exhaleFrequencyProfile = [];
 
     // Notify calibration started
     onCalibrationStart();
@@ -144,7 +157,25 @@ class BreathDetector {
       normalizedAmplitude = normalizedAmplitude.clamp(0.0, 1.0);
     }
 
+    // Update spectral buffer for frequency characteristics
+    _updateSpectralBuffer(rawAmplitude);
+
     return normalizedAmplitude;
+  }
+
+  void _updateSpectralBuffer(double rawAmplitude) {
+    // Add to spectral buffer
+    _spectralBuffer.add(rawAmplitude);
+
+    // Keep buffer at fixed size
+    if (_spectralBuffer.length > _spectralBufferSize) {
+      _spectralBuffer.removeAt(0);
+    }
+
+    // If we have a full buffer, update current frequency profile
+    if (_spectralBuffer.length == _spectralBufferSize) {
+      _currentFrequencyProfile = List.from(_spectralBuffer);
+    }
   }
 
   void _calibrateThreshold(double decibels) {
@@ -185,6 +216,44 @@ class BreathDetector {
     }
   }
 
+  // New method to calibrate breath profiles
+  void calibrateBreathProfiles() {
+    if (!_profilesCalibrated && _currentFrequencyProfile.isNotEmpty) {
+      // If we're in inhale phase, store the profile
+      if (_isInhaling && _inhaleFrequencyProfile.isEmpty) {
+        _inhaleFrequencyProfile = List.from(_currentFrequencyProfile);
+        print('Inhale frequency profile captured');
+      }
+
+      // If we're in exhale phase, store the profile
+      if (_isExhaling && _exhaleFrequencyProfile.isEmpty) {
+        _exhaleFrequencyProfile = List.from(_currentFrequencyProfile);
+        print('Exhale frequency profile captured');
+      }
+
+      // If we have both profiles, mark as calibrated
+      if (_inhaleFrequencyProfile.isNotEmpty && _exhaleFrequencyProfile.isNotEmpty) {
+        _profilesCalibrated = true;
+        print('Both breath profiles calibrated');
+      }
+    }
+  }
+
+  // Calculate similarity between current profile and stored profiles
+  double _calculateProfileSimilarity(List<double> profile1, List<double> profile2) {
+    if (profile1.isEmpty || profile2.isEmpty || profile1.length != profile2.length) {
+      return 0.0;
+    }
+
+    double sumSquaredDiff = 0.0;
+    for (int i = 0; i < profile1.length; i++) {
+      sumSquaredDiff += (profile1[i] - profile2[i]) * (profile1[i] - profile2[i]);
+    }
+
+    // Return similarity score (0-1, where 1 is perfect match)
+    return 1.0 / (1.0 + sumSquaredDiff);
+  }
+
   void startBreathDetection() {
     if (!_isRecording || !_calibrationCompleted) {
       print('Cannot start breath detection: recording=$_isRecording, calibrated=$_calibrationCompleted');
@@ -208,6 +277,7 @@ class BreathDetector {
     // 3. Exhale lasted long enough
     // 4. Total breath cycle lasted long enough
     // 5. It's been long enough since we last counted a breath
+    // 6. We're not in the middle of detecting another breath phase
 
     if (_inhaleStartTime == null || _exhaleStartTime == null) {
       return false;
@@ -222,10 +292,15 @@ class BreathDetector {
     bool longEnoughExhale = exhaleDuration >= _minExhaleDuration;
     bool longEnoughCycle = cycleDuration >= _minBreathCycleDuration;
 
+    // Stronger debounce condition - require a significant time between breath counts
     bool debouncePassed = _lastBreathCountedTime == null ||
         now.difference(_lastBreathCountedTime!) >= _breathCountDebounce;
 
-    bool validBreathCycle = longEnoughInhale && longEnoughExhale && longEnoughCycle && debouncePassed;
+    // Ensure we've completed a full inhale+exhale cycle before counting
+    bool fullCycleCompleted = _isExhaling && !_isInhaling;
+
+    bool validBreathCycle = longEnoughInhale && longEnoughExhale && longEnoughCycle &&
+        debouncePassed && fullCycleCompleted;
 
     if (validBreathCycle) {
       print('Valid breath cycle detected:');
@@ -245,6 +320,9 @@ class BreathDetector {
     return validBreathCycle;
   }
 
+  // Track the last state change time to prevent rapid state toggling
+  DateTime? _lastStateChangeTime;
+
   void _processAmplitude(double decibels) {
     if (!_isDetectingBreaths) return;
 
@@ -254,21 +332,45 @@ class BreathDetector {
     // Get current time for debouncing
     final now = DateTime.now();
 
-    // Using a more sensitive approach with dynamic thresholds for fast breathing
+    // Prevent too rapid state changes (add minimum time between state transitions)
+    bool canChangeState = _lastStateChangeTime == null ||
+        now.difference(_lastStateChangeTime!).inMilliseconds > 300;
+
+    if (!canChangeState) {
+      return;
+    }
+
+    // Calibrate profiles if needed
+    calibrateBreathProfiles();
+
+    // Calculate similarity scores if profiles are calibrated
+    double inhaleScore = 0.0;
+    double exhaleScore = 0.0;
+
+    if (_profilesCalibrated && _currentFrequencyProfile.isNotEmpty) {
+      inhaleScore = _calculateProfileSimilarity(_currentFrequencyProfile, _inhaleFrequencyProfile);
+      exhaleScore = _calculateProfileSimilarity(_currentFrequencyProfile, _exhaleFrequencyProfile);
+    }
+
+    // Using amplitude and frequency characteristics for breath detection
     if (normalizedAmplitude > _breathThreshold) {
       // Check if we're within the debounce period for peak detection
       bool canDetectNewPeak = _lastPeakTime == null ||
           now.difference(_lastPeakTime!).inMilliseconds > _peakDebounceDuration.inMilliseconds;
 
-      // Loud sound detected - likely an inhale
-      if (!_isInhaling && !_isExhaling && canDetectNewPeak) {
+      // Determine if this is more likely an inhale or exhale based on profiles
+      bool likelyInhale = inhaleScore > exhaleScore || !_profilesCalibrated;
+
+      // Loud sound detected - analyze if it's an inhale or exhale
+      if (!_isInhaling && !_isExhaling && canDetectNewPeak && likelyInhale) {
         // Start of inhale
         _isInhaling = true;
         _inhaleStartTime = now;
         _lastPeakTime = now;
+        _lastStateChangeTime = now;
         onStateChange(BreathState.inhaling);
-        print('Inhale started: $normalizedAmplitude > $_breathThreshold');
-      } else if (_isExhaling && canDetectNewPeak) {
+        print('Inhale started: $normalizedAmplitude > $_breathThreshold (inhale score: $inhaleScore)');
+      } else if (_isExhaling && canDetectNewPeak && likelyInhale) {
         // This could be the start of a new inhale (beginning a new breath cycle)
 
         // Check if we should count the previous breath cycle
@@ -276,6 +378,10 @@ class BreathDetector {
           onBreathDetected();
           _lastBreathCountedTime = now;
           print('Complete breath cycle counted');
+
+          // Clear previous cycle data
+          _inhaleStartTime = null;
+          _exhaleStartTime = null;
         }
 
         // Start a new breath cycle
@@ -284,18 +390,45 @@ class BreathDetector {
         _inhaleStartTime = now;
         _lastPeakTime = now;
         onStateChange(BreathState.inhaling);
-        print('New inhale after exhale: $normalizedAmplitude');
-      }
-    } else if (normalizedAmplitude < _breathThreshold * 0.5) { // More sensitive exhale detection
-      // Quiet phase detected - potential exhale
-      if (_isInhaling && !_isExhaling) {
-        // Transition from inhale to exhale
+        print('New inhale after exhale: $normalizedAmplitude (inhale score: $inhaleScore)');
+      } else if (_isInhaling && !_isExhaling && canDetectNewPeak && !likelyInhale) {
+        // Transition from inhale to exhale based on frequency characteristics
         _isExhaling = true;
         _isInhaling = false;
         _exhaleStartTime = now;
         _lastPeakTime = now;
         onStateChange(BreathState.exhaling);
-        print('Exhale started: $normalizedAmplitude < ${_breathThreshold * 0.5}');
+        print('Exhale started (from inhale): $normalizedAmplitude (exhale score: $exhaleScore)');
+      }
+    } else if (normalizedAmplitude < _breathThreshold * 0.6) {
+      // Quiet phase detected - potential exhale transition
+
+      // Determine if this is more likely an exhale based on profiles
+      bool likelyExhale = exhaleScore > inhaleScore || !_profilesCalibrated;
+
+      if (_isInhaling && !_isExhaling && likelyExhale) {
+        // Transition from inhale to exhale
+        _isExhaling = true;
+        _isInhaling = false;
+        _exhaleStartTime = now;
+        _lastPeakTime = now;
+        _lastStateChangeTime = now;
+        onStateChange(BreathState.exhaling);
+        print('Exhale started: $normalizedAmplitude < ${_breathThreshold * 0.6} (exhale score: $exhaleScore)');
+      } else if (_isExhaling && !_isInhaling && normalizedAmplitude < _breathThreshold * 0.3) {
+        // End of exhale, complete breath cycle
+        if (_canCountBreath(now)) {
+          onBreathDetected();
+          _lastBreathCountedTime = now;
+          print('Complete breath cycle counted at end of exhale');
+
+          // Reset breath state
+          _isInhaling = false;
+          _isExhaling = false;
+          _inhaleStartTime = null;
+          _exhaleStartTime = null;
+          onStateChange(BreathState.idle);
+        }
       }
     }
 
@@ -315,6 +448,7 @@ class BreathDetector {
         _isExhaling = false;
         _inhaleStartTime = null;
         _exhaleStartTime = null;
+        _lastStateChangeTime = now;
         onStateChange(BreathState.idle);
         print('Reset breath state due to timeout');
       }
