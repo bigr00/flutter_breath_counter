@@ -5,6 +5,8 @@ import '../widgets/breath_counter_display.dart';
 import '../widgets/breath_controls.dart';
 import '../widgets/status_display.dart';
 import '../widgets/breath_hold_timer.dart';
+import '../widgets/breath_history_dialog.dart';
+import '../models/breath_history_item.dart';
 
 class BreathCounterScreen extends StatefulWidget {
   const BreathCounterScreen({Key? key}) : super(key: key);
@@ -25,6 +27,9 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   // Breath hold state
   bool _isHoldingBreath = false;
   int _breathHoldDuration = 0;
+
+  // History tracking
+  List<BreathHistoryItem> _historyItems = [];
 
   @override
   void initState() {
@@ -103,6 +108,11 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
       },
       onBreathHoldChange: (isHolding, duration) {
         if (mounted) {
+          // If we're ending a breath hold, record it in history
+          if (_isHoldingBreath && !isHolding && _breathHoldDuration > 0) {
+            _saveToHistory();
+          }
+
           setState(() {
             _isHoldingBreath = isHolding;
             _breathHoldDuration = duration;
@@ -139,6 +149,9 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
 
   void _stopCounting() {
     if (_isCounting) {
+      // Save the session to history when stopping
+      _saveToHistory();
+
       setState(() {
         _isCounting = false;
         _isReadyForCounting = true;
@@ -153,6 +166,11 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   void _resetCounter() {
+    // Save current session to history before resetting if there's data to save
+    if (_breathCount > 0 || _breathHoldDuration > 0) {
+      _saveToHistory();
+    }
+
     setState(() {
       _breathCount = 0;
 
@@ -166,7 +184,26 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   void _toggleBreathHold() {
+    // If we're ending a breath hold with a duration, save to history
+    if (_isHoldingBreath && _breathHoldDuration > 0) {
+      _saveToHistory();
+    }
     _breathDetector.toggleBreathHold();
+  }
+
+  void _saveToHistory() {
+    // Only save if there are breaths or a hold
+    if (_breathCount > 0 || _breathHoldDuration > 0) {
+      setState(() {
+        _historyItems.add(
+          BreathHistoryItem(
+            timestamp: DateTime.now(),
+            breathCount: _breathCount,
+            holdDuration: _breathHoldDuration,
+          ),
+        );
+      });
+    }
   }
 
   void _provideFeedback() {
@@ -207,6 +244,15 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
         _breathDetector.startCalibration();
       }
     });
+  }
+
+  void _showHistoryDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => BreathHistoryDialog(
+        historyItems: _historyItems,
+      ),
+    );
   }
 
   void _showSettingsDialog() {
@@ -292,6 +338,11 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
         title: const Text('Breath Counter'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: _showHistoryDialog,
+            tooltip: 'View history',
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _showSettingsDialog,
             tooltip: 'Adjust sensitivity',
@@ -356,6 +407,10 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
 
   @override
   void dispose() {
+    // Save any unsaved session before disposing
+    if (_breathCount > 0 || _breathHoldDuration > 0) {
+      _saveToHistory();
+    }
     _breathDetector.dispose();
     super.dispose();
   }
