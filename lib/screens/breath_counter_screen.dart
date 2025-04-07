@@ -4,6 +4,7 @@ import '../widgets/breath_visualization.dart';
 import '../widgets/breath_counter_display.dart';
 import '../widgets/breath_controls.dart';
 import '../widgets/status_display.dart';
+import '../widgets/breath_hold_timer.dart';
 
 class BreathCounterScreen extends StatefulWidget {
   const BreathCounterScreen({Key? key}) : super(key: key);
@@ -20,6 +21,10 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   bool _isReadyForCounting = false;
   bool _isCounting = false;
   Color _feedbackColor = Colors.grey;
+
+  // Breath hold state
+  bool _isHoldingBreath = false;
+  int _breathHoldDuration = 0;
 
   @override
   void initState() {
@@ -87,11 +92,22 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
             case BreathState.exhaling:
               _feedbackColor = Colors.green;
               break;
+            case BreathState.holding:
+              _feedbackColor = Colors.amber;
+              break;
             case BreathState.idle:
               _feedbackColor = _isCalibrating ? Colors.orange : Colors.grey;
               break;
           }
         });
+      },
+      onBreathHoldChange: (isHolding, duration) {
+        if (mounted) {
+          setState(() {
+            _isHoldingBreath = isHolding;
+            _breathHoldDuration = duration;
+          });
+        }
       },
     );
 
@@ -126,17 +142,31 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
       setState(() {
         _isCounting = false;
         _isReadyForCounting = true;
+
+        // If we were holding a breath, also reset that state
+        if (_isHoldingBreath) {
+          _breathDetector.stopBreathHold();
+        }
       });
       _breathDetector.stopBreathDetection();
-      _breathDetector.resetState();
     }
   }
 
   void _resetCounter() {
     setState(() {
       _breathCount = 0;
+
+      // Reset breath hold information as well
+      if (_isHoldingBreath) {
+        _breathDetector.stopBreathHold();
+      }
+      _breathHoldDuration = 0;
     });
     _breathDetector.resetState();
+  }
+
+  void _toggleBreathHold() {
+    _breathDetector.toggleBreathHold();
   }
 
   void _provideFeedback() {
@@ -160,6 +190,11 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   void _recalibrate() {
     if (_isCounting) {
       _stopCounting();
+    }
+
+    // End any active breath hold
+    if (_isHoldingBreath) {
+      _breathDetector.stopBreathHold();
     }
 
     setState(() {
@@ -276,7 +311,25 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
                   feedbackColor: _feedbackColor,
                 ),
                 const SizedBox(height: 30),
-                BreathCounterDisplay(breathCount: _breathCount),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Breath counter
+                      const Spacer(),
+                      BreathCounterDisplay(breathCount: _breathCount),
+                      const SizedBox(width: 40), // Reduced spacing between counters
+                      // Breath hold timer
+                      BreathHoldTimer(
+                        isActive: _isHoldingBreath,
+                        durationInSeconds: _breathHoldDuration,
+                      ),
+                      const Spacer(),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 20),
                 StatusDisplay(
                   isCalibrating: _isCalibrating,
@@ -286,9 +339,11 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
                 BreathControls(
                   isReadyForCounting: _isReadyForCounting,
                   isCounting: _isCounting,
+                  isHoldingBreath: _isHoldingBreath,
                   onStart: _startCounting,
                   onStop: _stopCounting,
                   onReset: _resetCounter,
+                  onToggleBreathHold: _toggleBreathHold,
                 ),
                 const SizedBox(height: 20),
               ],

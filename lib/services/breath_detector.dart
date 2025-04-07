@@ -7,6 +7,7 @@ enum BreathState {
   idle,
   inhaling,
   exhaling,
+  holding,
 }
 
 class BreathDetector {
@@ -19,6 +20,7 @@ class BreathDetector {
   final VoidCallback onBreathDetected;
   final Function(double) onAmplitudeChange;
   final Function(BreathState) onStateChange;
+  final Function(bool, int) onBreathHoldChange;
 
   // Detection parameters
   double _breathThreshold = 0.15;
@@ -39,6 +41,14 @@ class BreathDetector {
   bool _isExhaling = false;
   bool get isInhaling => _isInhaling;
   bool get isExhaling => _isExhaling;
+
+  // Breath hold state
+  bool _isHoldingBreath = false;
+  bool get isHoldingBreath => _isHoldingBreath;
+  DateTime? _breathHoldStartTime;
+  int _breathHoldDuration = 0;
+  int _lastBreathHoldDuration = 0;
+  Timer? _breathHoldTimer;
 
   // Track complete breath cycles with more robust timing
   DateTime? _inhaleStartTime;
@@ -75,6 +85,7 @@ class BreathDetector {
     required this.onBreathDetected,
     required this.onAmplitudeChange,
     required this.onStateChange,
+    required this.onBreathHoldChange,
   });
 
   Future<void> initialize() async {
@@ -101,6 +112,11 @@ class BreathDetector {
     _inhaleFrequencyProfile = [];
     _exhaleFrequencyProfile = [];
 
+    // Stop breath hold tracking if active
+    if (_isHoldingBreath) {
+      stopBreathHold();
+    }
+
     // Notify calibration started
     onCalibrationStart();
 
@@ -125,7 +141,7 @@ class BreathDetector {
               // Process the amplitude based on current mode
               if (_isCalibrating && !_calibrationCompleted) {
                 _calibrateThreshold(amplitude);
-              } else if (_isDetectingBreaths) {
+              } else if (_isDetectingBreaths && !_isHoldingBreath) {
                 _processAmplitude(amplitude);
               }
             }
@@ -136,6 +152,61 @@ class BreathDetector {
         _isCalibrating = false;
       }
     }
+  }
+
+  // Manual breath hold control methods
+  void toggleBreathHold() {
+    if (_isHoldingBreath) {
+      stopBreathHold();
+    } else {
+      startBreathHold();
+    }
+  }
+
+  void startBreathHold() {
+    if (!_isHoldingBreath && _isDetectingBreaths) {
+      _isHoldingBreath = true;
+      _breathHoldStartTime = DateTime.now();
+      _breathHoldDuration = 0;
+
+      // Update UI
+      onBreathHoldChange(_isHoldingBreath, _breathHoldDuration);
+      onStateChange(BreathState.holding);
+
+      // Start timer to update the breath hold duration
+      _breathHoldTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (_breathHoldStartTime != null) {
+          _breathHoldDuration = DateTime.now().difference(_breathHoldStartTime!).inSeconds;
+          onBreathHoldChange(_isHoldingBreath, _breathHoldDuration);
+        }
+      });
+
+      print('Breath hold started manually');
+    }
+  }
+
+  void stopBreathHold() {
+    if (_isHoldingBreath) {
+      _isHoldingBreath = false;
+      _lastBreathHoldDuration = _breathHoldDuration;
+
+      // Update UI with final duration before stopping
+      onBreathHoldChange(false, _lastBreathHoldDuration);
+
+      // Stop timer
+      _stopBreathHoldTimer();
+
+      // Return to normal breath detection state
+      onStateChange(BreathState.idle);
+
+      print('Breath hold stopped, duration: $_lastBreathHoldDuration seconds');
+    }
+  }
+
+  void _stopBreathHoldTimer() {
+    _breathHoldTimer?.cancel();
+    _breathHoldTimer = null;
+    _breathHoldStartTime = null;
   }
 
   double _normalizeAmplitude(double decibels) {
@@ -267,6 +338,16 @@ class BreathDetector {
 
   void stopBreathDetection() {
     _isDetectingBreaths = false;
+
+    // Stop breath hold tracking if active
+    if (_isHoldingBreath) {
+      stopBreathHold();
+    }
+
+    // Make sure to reset the state and notify listeners
+    _resetState();
+    onStateChange(BreathState.idle);
+
     print('Stopped breath detection');
   }
 
@@ -324,7 +405,7 @@ class BreathDetector {
   DateTime? _lastStateChangeTime;
 
   void _processAmplitude(double decibels) {
-    if (!_isDetectingBreaths) return;
+    if (!_isDetectingBreaths || _isHoldingBreath) return;
 
     // Get normalized amplitude
     double normalizedAmplitude = _normalizeAmplitude(decibels);
@@ -455,7 +536,7 @@ class BreathDetector {
     }
   }
 
-  void resetState() {
+  void _resetState() {
     _isInhaling = false;
     _isExhaling = false;
     _lastPeakTime = null;
@@ -464,6 +545,12 @@ class BreathDetector {
     _exhaleStartTime = null;
     _lastBreathCountedTime = null;
     onStateChange(BreathState.idle);
+  }
+
+  void resetState() {
+    _resetState();
+
+    // We no longer reset breath hold state here to allow manual control
   }
 
   void setBreathThreshold(double threshold) {
@@ -477,6 +564,7 @@ class BreathDetector {
 
   void dispose() {
     stopBreathDetection();
+    _stopBreathHoldTimer();
     _amplitudeSubscription?.cancel();
     _amplitudeSubscription = null;
     if (_isRecording) {
