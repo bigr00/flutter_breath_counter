@@ -25,8 +25,6 @@ class BreathControls extends StatelessWidget {
           onPressed: isReadyForCounting ? (isCounting ? onStop : onStart) : null,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-            backgroundColor: isCounting ? Colors.red : Colors.green,
-            disabledBackgroundColor: Colors.grey.shade300,
           ),
           child: Text(isCounting ? 'Stop' : 'Start'),
         ),

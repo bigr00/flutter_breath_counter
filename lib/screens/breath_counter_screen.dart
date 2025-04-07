@@ -28,7 +28,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   Future<void> _initializeDetector() async {
-    // Create the detector with callbacks
     _breathDetector = BreathDetector(
       onCalibrationStart: () {
         if (mounted) {
@@ -96,10 +95,8 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
       },
     );
 
-    // Initialize and start calibration
     await _breathDetector.initialize();
 
-    // Small delay to ensure initialization is complete
     Future.delayed(Duration(milliseconds: 500), () {
       if (mounted) {
         _breathDetector.startCalibration();
@@ -128,8 +125,10 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
     if (_isCounting) {
       setState(() {
         _isCounting = false;
+        _isReadyForCounting = true;
       });
       _breathDetector.stopBreathDetection();
+      _breathDetector.resetState();
     }
   }
 
@@ -141,16 +140,13 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   void _provideFeedback() {
-    // Store the original color
     Color originalColor = _feedbackColor;
 
-    // Show feedback color
     if (mounted) {
       setState(() {
         _feedbackColor = Colors.orange;
       });
 
-      // Reset after a short delay
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) {
           setState(() {
@@ -162,18 +158,15 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   void _recalibrate() {
-    // Stop counting if active
     if (_isCounting) {
       _stopCounting();
     }
 
-    // Reset flags
     setState(() {
       _isReadyForCounting = false;
       _isCounting = false;
     });
 
-    // Start calibration
     Future.delayed(Duration(milliseconds: 500), () {
       if (mounted) {
         _breathDetector.startCalibration();
@@ -278,22 +271,18 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 const SizedBox(height: 30),
-                // Breath visualization indicator
                 BreathVisualization(
                   currentAmplitude: _currentAmplitude,
                   feedbackColor: _feedbackColor,
                 ),
                 const SizedBox(height: 30),
-                // Breath counter display
                 BreathCounterDisplay(breathCount: _breathCount),
                 const SizedBox(height: 20),
-                // Status display (only shows during calibration)
                 StatusDisplay(
                   isCalibrating: _isCalibrating,
                   feedbackColor: _feedbackColor,
                 ),
-                const SizedBox(height: 40),
-                // Control buttons - combined start/stop button
+                const SizedBox(height: 20),
                 BreathControls(
                   isReadyForCounting: _isReadyForCounting,
                   isCounting: _isCounting,
@@ -302,49 +291,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
                   onReset: _resetCounter,
                 ),
                 const SizedBox(height: 20),
-                // Debug information
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Threshold: '),
-                          Text(
-                            _breathDetector.breathThreshold.toStringAsFixed(2),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Current level: '),
-                          Text(
-                            _currentAmplitude.toStringAsFixed(2),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _isCalibrating
-                            ? 'App is calibrating...'
-                            : (_isCounting
-                            ? 'Counting breaths'
-                            : 'Press Start to begin counting'),
-                        style: TextStyle(
-                          fontStyle: FontStyle.italic,
-                          color: _isCalibrating
-                              ? Colors.orange
-                              : (_isCounting ? Colors.green : Colors.grey),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
