@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -122,9 +123,13 @@ class BreathDetector {
 
     if (!_isRecording) {
       try {
+        // Get web-compatible codec
+        Codec codec = kIsWeb ? Codec.opusWebM : Codec.aacADTS;
+        String fileExtension = kIsWeb ? 'webm' : 'aac';
+
         await _recorder.startRecorder(
-          toFile: 'calibration_recording.aac',
-          codec: Codec.aacADTS,
+          toFile: 'calibration_recording.$fileExtension',
+          codec: codec,
         );
         _isRecording = true;
 
