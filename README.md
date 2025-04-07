@@ -2,6 +2,8 @@
 
 A Flutter application that detects and counts breaths using the device's microphone, while also providing breath-holding timer functionality.
 
+[![Try the Demo](https://img.shields.io/badge/Try%20the%20Demo-Live%20App-blue)](https://breath-counter.fly.dev)
+
 ![Breath Counter App Screenshot](screenshots/app_screenshot.png)
 
 ## Screenshots
@@ -54,30 +56,30 @@ A Flutter application that detects and counts breaths using the device's microph
 ## Usage
 
 1. **Initial Setup**:
-    - When first launched, the app will request microphone permissions
-    - The app will automatically calibrate to the ambient noise level
-    - Wait for "Calibration complete" message
+   - When first launched, the app will request microphone permissions
+   - The app will automatically calibrate to the ambient noise level
+   - Wait for "Calibration complete" message
 
 2. **Breath Counting**:
-    - Press "Start" to begin breath detection
-    - Breathe naturally near your device's microphone
-    - The circle will pulse with your breath, showing blue for inhales and green for exhales
-    - The counter will increment with each detected breath
+   - Press "Start" to begin breath detection
+   - Breathe naturally near your device's microphone
+   - The circle will pulse with your breath, showing blue for inhales and green for exhales
+   - The counter will increment with each detected breath
 
 3. **Breath Holding**:
-    - While in a counting session, press "Hold" to start the breath hold timer
-    - Press "End Hold" to stop the timer when you resume breathing
-    - Your hold duration will be recorded
+   - While in a counting session, press "Hold" to start the breath hold timer
+   - Press "End Hold" to stop the timer when you resume breathing
+   - Your hold duration will be recorded
 
 4. **View History**:
-    - Tap the history icon in the app bar to see your breathing sessions
-    - Each session shows the number of breaths and hold duration
+   - Tap the history icon in the app bar to see your breathing sessions
+   - Each session shows the number of breaths and hold duration
 
 5. **Adjust Sensitivity**:
-    - Tap the settings icon in the app bar
-    - Use the slider to adjust breath detection sensitivity
-    - "More sensitive" will detect quieter breaths
-    - "Less sensitive" helps filter out background noise
+   - Tap the settings icon in the app bar
+   - Use the slider to adjust breath detection sensitivity
+   - "More sensitive" will detect quieter breaths
+   - "Less sensitive" helps filter out background noise
 
 ## Architecture
 
@@ -100,8 +102,8 @@ The app follows a modular architecture with clear separation of concerns:
 This app requires the following permissions:
 
 - **Microphone**: Used for breath detection
-    - Android: Add to AndroidManifest.xml
-    - iOS: Add to Info.plist
+   - Android: Add to AndroidManifest.xml
+   - iOS: Add to Info.plist
 
 ## Dependencies
 
