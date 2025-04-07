@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class BreathControls extends StatelessWidget {
-  final bool isRecording;
+  final bool isReadyForCounting;
   final bool isCounting;
   final VoidCallback onStart;
   final VoidCallback onStop;
@@ -9,7 +9,7 @@ class BreathControls extends StatelessWidget {
 
   const BreathControls({
     Key? key,
-    required this.isRecording,
+    required this.isReadyForCounting,
     required this.isCounting,
     required this.onStart,
     required this.onStop,
@@ -22,23 +22,13 @@ class BreathControls extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         ElevatedButton(
-          onPressed: isRecording ? onStart : null,
+          onPressed: isReadyForCounting ? (isCounting ? onStop : onStart) : null,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-            backgroundColor: Colors.green,
+            backgroundColor: isCounting ? Colors.red : Colors.green,
             disabledBackgroundColor: Colors.grey.shade300,
           ),
-          child: const Text('Start'),
-        ),
-        const SizedBox(width: 20),
-        ElevatedButton(
-          onPressed: isCounting ? onStop : null,
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-            backgroundColor: Colors.red,
-            disabledBackgroundColor: Colors.grey.shade300,
-          ),
-          child: const Text('Stop'),
+          child: Text(isCounting ? 'Stop' : 'Start'),
         ),
         const SizedBox(width: 20),
         ElevatedButton(
