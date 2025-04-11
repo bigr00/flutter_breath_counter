@@ -201,7 +201,8 @@ class BreathDetector {
       // Stop timer
       _stopBreathHoldTimer();
 
-      // Return to normal breath detection state
+      // Return to normal breath detection state - idle state instead of continuing breath detection
+      _isDetectingBreaths = false;
       onStateChange(BreathState.idle);
 
       print('Breath hold stopped, duration: $_lastBreathHoldDuration seconds');

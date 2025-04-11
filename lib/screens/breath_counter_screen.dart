@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../services/breath_detector.dart';
+import '../services/audio_service.dart';
 import '../widgets/breath_visualization.dart';
 import '../widgets/breath_counter_display.dart';
 import '../widgets/breath_controls.dart';
 import '../widgets/status_display.dart';
 import '../widgets/breath_hold_timer.dart';
 import '../widgets/breath_history_dialog.dart';
+import '../widgets/settings_dialog.dart';
 import '../models/breath_history_item.dart';
+import '../models/settings_model.dart';
 
 class BreathCounterScreen extends StatefulWidget {
   const BreathCounterScreen({Key? key}) : super(key: key);
@@ -17,6 +20,7 @@ class BreathCounterScreen extends StatefulWidget {
 
 class _BreathCounterScreenState extends State<BreathCounterScreen> {
   late BreathDetector _breathDetector;
+  late AudioService _audioService;
   int _breathCount = 0;
   double _currentAmplitude = 0;
   bool _isCalibrating = false;
@@ -31,10 +35,16 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   // History tracking
   List<BreathHistoryItem> _historyItems = [];
 
+  // Settings
+  late SettingsModel _settings;
+
   @override
   void initState() {
     super.initState();
+    _settings = SettingsModel();
+    _audioService = AudioService();
     _initializeDetector();
+    _audioService.initialize();
   }
 
   Future<void> _initializeDetector() async {
@@ -77,6 +87,27 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
             _breathCount++;
           });
           _provideFeedback();
+
+          // Check if target breath count is reached
+          if (_settings.enableAutoHold &&
+              _breathCount >= _settings.targetBreathCount &&
+              !_isHoldingBreath) {
+            // Play sound if enabled
+            if (_settings.enableSounds) {
+              _audioService.playBreathCountReached();
+            }
+
+            // Directly start breath hold - don't use toggle in case we're in an unexpected state
+            _breathDetector.startBreathHold();
+
+            // Notify user
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Target breath count (${_settings.targetBreathCount}) reached! Starting breath hold.'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
         }
       },
       onAmplitudeChange: (amplitude) {
@@ -117,6 +148,30 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
             _isHoldingBreath = isHolding;
             _breathHoldDuration = duration;
           });
+
+          // Check if target hold duration is reached
+          if (isHolding &&
+              duration >= _settings.targetHoldDuration &&
+              _settings.enableAutoHold) {
+            // Play sound if enabled
+            if (_settings.enableSounds) {
+              _audioService.playHoldTimerReached();
+            }
+
+            // Directly stop the breath hold
+            _breathDetector.stopBreathHold();
+
+            // Also stop counting - put in same state as Stop button
+            _stopCounting();
+
+            // Notify user
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Target hold duration (${_settings.targetHoldDuration} seconds) reached!'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
         }
       },
     );
@@ -184,11 +239,20 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   void _toggleBreathHold() {
-    // If we're ending a breath hold with a duration, save to history
-    if (_isHoldingBreath && _breathHoldDuration > 0) {
-      _saveToHistory();
+    if (_isHoldingBreath) {
+      // If we're ending a breath hold with a duration, save to history
+      if (_breathHoldDuration > 0) {
+        _saveToHistory();
+      }
+
+      // Stop the breath hold
+      _breathDetector.stopBreathHold();
+
+      // Also stop counting - put in same state as Stop button
+      _stopCounting();
+    } else {
+      _breathDetector.startBreathHold();
     }
-    _breathDetector.toggleBreathHold();
   }
 
   void _saveToHistory() {
@@ -256,77 +320,20 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   void _showSettingsDialog() {
-    double tempThreshold = _breathDetector.breathThreshold;
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Adjust Sensitivity'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Move slider to adjust breath detection sensitivity:'),
-            const SizedBox(height: 20),
-            StatefulBuilder(
-              builder: (context, setState) => Column(
-                children: [
-                  Slider(
-                    value: tempThreshold,
-                    min: 0.1,
-                    max: 0.7,
-                    divisions: 30,
-                    label: tempThreshold.toStringAsFixed(2),
-                    onChanged: (value) {
-                      setState(() {
-                        tempThreshold = value;
-                      });
-                    },
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      Text('More sensitive', style: TextStyle(fontSize: 12)),
-                      Text('Less sensitive', style: TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton(
-                  child: const Text('Reset Max'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _breathDetector.resetMaxAmplitude();
-                  },
-                ),
-                ElevatedButton(
-                  child: const Text('Recalibrate'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _recalibrate();
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              _breathDetector.setBreathThreshold(tempThreshold);
-              Navigator.of(context).pop();
-            },
-            child: const Text('Apply'),
-          ),
-        ],
+      builder: (context) => SettingsDialog(
+        settings: _settings,
+        onSettingsChanged: (newSettings) {
+          setState(() {
+            _settings = newSettings;
+          });
+          _breathDetector.setBreathThreshold(newSettings.breathThreshold);
+        },
+        onRecalibrate: _recalibrate,
+        onResetMaxAmplitude: () {
+          _breathDetector.resetMaxAmplitude();
+        },
       ),
     );
   }
@@ -345,7 +352,7 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _showSettingsDialog,
-            tooltip: 'Adjust sensitivity',
+            tooltip: 'Settings',
           ),
         ],
       ),
@@ -370,12 +377,16 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
                     children: [
                       // Breath counter
                       const Spacer(),
-                      BreathCounterDisplay(breathCount: _breathCount),
+                      BreathCounterDisplay(
+                        breathCount: _breathCount,
+                        targetCount: _settings.enableAutoHold ? _settings.targetBreathCount : null,
+                      ),
                       const SizedBox(width: 40), // Reduced spacing between counters
                       // Breath hold timer
                       BreathHoldTimer(
                         isActive: _isHoldingBreath,
                         durationInSeconds: _breathHoldDuration,
+                        targetDuration: _settings.enableAutoHold ? _settings.targetHoldDuration : null,
                       ),
                       const Spacer(),
                     ],
@@ -412,6 +423,7 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
       _saveToHistory();
     }
     _breathDetector.dispose();
+    _audioService.dispose();
     super.dispose();
   }
 }

@@ -25,13 +25,15 @@ class BreathControls extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        ElevatedButton(
-          onPressed: isReadyForCounting ? (isCounting ? onStop : onStart) : null,
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        // Only show Start/Stop button if not holding breath
+        if (!isHoldingBreath)
+          ElevatedButton(
+            onPressed: isReadyForCounting ? (isCounting ? onStop : onStart) : null,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            ),
+            child: Text(isCounting ? 'Stop' : 'Start'),
           ),
-          child: Text(isCounting ? 'Stop' : 'Start'),
-        ),
         const SizedBox(width: 10),
         ElevatedButton(
           onPressed: onReset,
@@ -42,12 +44,12 @@ class BreathControls extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         ElevatedButton(
-          onPressed: isCounting ? onToggleBreathHold : null,
+          onPressed: isCounting || isHoldingBreath ? onToggleBreathHold : null,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            backgroundColor: isHoldingBreath ? Colors.amber : null,
+            backgroundColor: isHoldingBreath ? Colors.red : Colors.amber,
           ),
-          child: Text(isHoldingBreath ? 'End Hold' : 'Hold'),
+          child: Text(isHoldingBreath ? 'Stop Hold' : 'Hold'),
         ),
       ],
     );
