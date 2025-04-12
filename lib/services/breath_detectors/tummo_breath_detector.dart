@@ -11,7 +11,7 @@ enum BreathState {
   holding,
 }
 
-class BreathDetector {
+class TummoBreathDetector {
   final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
   StreamSubscription? _amplitudeSubscription;
 
@@ -80,7 +80,7 @@ class BreathDetector {
   List<double> _spectralBuffer = [];
   int _spectralBufferSize = 10;
 
-  BreathDetector({
+  TummoBreathDetector({
     required this.onCalibrationStart,
     required this.onCalibrationComplete,
     required this.onBreathDetected,

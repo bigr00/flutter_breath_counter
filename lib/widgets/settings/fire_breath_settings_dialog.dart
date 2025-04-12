@@ -19,7 +19,6 @@ class FireBreathSettingsDialog extends StatefulWidget {
 class _FireBreathSettingsDialogState extends State<FireBreathSettingsDialog> {
   late TextEditingController _breathCountController;
   late TextEditingController _roundCountController;
-  late double _breathPace;
   late bool _enableSounds;
 
   @override
@@ -27,7 +26,6 @@ class _FireBreathSettingsDialogState extends State<FireBreathSettingsDialog> {
     super.initState();
     _breathCountController = TextEditingController(text: widget.settings.targetBreathCount.toString());
     _roundCountController = TextEditingController(text: widget.settings.roundCount.toString());
-    _breathPace = widget.settings.breathPacePerSecond;
     _enableSounds = widget.settings.enableSounds;
   }
 
@@ -80,40 +78,12 @@ class _FireBreathSettingsDialogState extends State<FireBreathSettingsDialog> {
               ),
             ),
 
-            // Breathing pace slider
-            const Text('Breathing Pace', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 5),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                overlayShape: SliderComponentShape.noOverlay,
-              ),
-              child: Slider(
-                value: _breathPace,
-                min: 0.5,
-                max: 2.0,
-                divisions: 15,
-                label: '${_breathPace.toStringAsFixed(1)} breaths/sec',
-                onChanged: (value) {
-                  setState(() {
-                    _breathPace = value;
-                  });
-                },
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text('Slower', style: TextStyle(fontSize: 12)),
-                Text('Faster', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-
             const SizedBox(height: 15),
 
             // Audio guidance option
             SwitchListTile(
               title: const Text('Audio Guidance'),
-              subtitle: const Text('Play sounds for breath timing and round transitions'),
+              subtitle: const Text('Play sounds for round transitions'),
               value: _enableSounds,
               onChanged: (value) {
                 setState(() {
@@ -122,18 +92,9 @@ class _FireBreathSettingsDialogState extends State<FireBreathSettingsDialog> {
               },
             ),
 
-            // Intensity presets
+            // Presets
             const SizedBox(height: 10),
-            const Text('Intensity Presets', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildPresetButton('Gentle', 0.7, 20),
-                _buildPresetButton('Medium', 1.0, 30),
-                _buildPresetButton('Intense', 1.5, 40),
-              ],
-            ),
+
           ],
         ),
       ),
@@ -159,7 +120,6 @@ class _FireBreathSettingsDialogState extends State<FireBreathSettingsDialog> {
 
               widget.onSettingsChanged(FireBreathSettings(
                 targetBreathCount: breathCount,
-                breathPacePerSecond: _breathPace,
                 roundCount: roundCount,
                 enableSounds: _enableSounds,
               ));
@@ -173,7 +133,7 @@ class _FireBreathSettingsDialogState extends State<FireBreathSettingsDialog> {
     );
   }
 
-  Widget _buildPresetButton(String label, double pace, int count) {
+  Widget _buildPresetButton(String label, int count) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -181,7 +141,6 @@ class _FireBreathSettingsDialogState extends State<FireBreathSettingsDialog> {
       ),
       onPressed: () {
         setState(() {
-          _breathPace = pace;
           _breathCountController.text = count.toString();
         });
       },

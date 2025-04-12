@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../services/breath_detector.dart';
 import '../../../widgets/breath_visualization.dart';
 import '../../../widgets/breath_counter_display.dart';
 import '../../../widgets/breath_controls.dart';
 import '../../../widgets/status_display.dart';
 import '../../../widgets/breath_hold_timer.dart';
-import '../../../models/breath_history_item.dart';
 
 // Tummo-specific settings
 class TummoSettings {
