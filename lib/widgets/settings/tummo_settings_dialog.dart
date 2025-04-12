@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/settings_model.dart';
-import '../models/breathing_technique.dart';
-import 'breathing_technique_selector.dart';
+import '../../widgets/techniques/tummo_technique_widget.dart';
 
-class SettingsDialog extends StatefulWidget {
-  final SettingsModel settings;
-  final Function(SettingsModel) onSettingsChanged;
+class TummoSettingsDialog extends StatefulWidget {
+  final TummoSettings settings;
+  final Function(TummoSettings) onSettingsChanged;
   final VoidCallback onRecalibrate;
   final VoidCallback onResetMaxAmplitude;
 
-  const SettingsDialog({
+  const TummoSettingsDialog({
     Key? key,
     required this.settings,
     required this.onSettingsChanged,
@@ -19,16 +17,15 @@ class SettingsDialog extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _SettingsDialogState createState() => _SettingsDialogState();
+  _TummoSettingsDialogState createState() => _TummoSettingsDialogState();
 }
 
-class _SettingsDialogState extends State<SettingsDialog> {
+class _TummoSettingsDialogState extends State<TummoSettingsDialog> {
   late TextEditingController _breathCountController;
   late TextEditingController _holdDurationController;
   late bool _enableAutoHold;
   late bool _enableSounds;
   late double _tempThreshold;
-  late BreathingTechnique _selectedTechnique;
 
   @override
   void initState() {
@@ -38,7 +35,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
     _enableAutoHold = widget.settings.enableAutoHold;
     _enableSounds = widget.settings.enableSounds;
     _tempThreshold = widget.settings.breathThreshold;
-    _selectedTechnique = widget.settings.breathingTechnique;
   }
 
   @override
@@ -48,30 +44,15 @@ class _SettingsDialogState extends State<SettingsDialog> {
     super.dispose();
   }
 
-  void _onTechniqueSelected(BreathingTechnique technique) {
-    setState(() {
-      _selectedTechnique = technique;
-      // Update target values based on selected technique
-      _breathCountController.text = technique.defaultTargetBreathCount.toString();
-      _holdDurationController.text = technique.defaultHoldDuration.toString();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Settings'),
+      title: const Text('Tummo Breathing Settings'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            BreathingTechniqueSelector(
-              selectedTechnique: _selectedTechnique,
-              onTechniqueSelected: _onTechniqueSelected,
-            ),
-
-            const SizedBox(height: 20),
             const Text('Breath Detection Sensitivity', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             SliderTheme(
@@ -99,7 +80,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               ],
             ),
             const SizedBox(height: 20),
-            const Text('Automation Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Tummo Settings', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
 
             // Target breath count
@@ -109,7 +90,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 controller: _breathCountController,
                 decoration: const InputDecoration(
                   labelText: 'Target Breath Count',
-                  hintText: 'E.g., 30 breaths',
+                  hintText: 'E.g., 40 breaths',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
@@ -124,7 +105,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 controller: _holdDurationController,
                 decoration: const InputDecoration(
                   labelText: 'Target Hold Duration (seconds)',
-                  hintText: 'E.g., 60 seconds',
+                  hintText: 'E.g., 90 seconds',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
@@ -200,13 +181,12 @@ class _SettingsDialogState extends State<SettingsDialog> {
               breathCount = breathCount != null && breathCount > 0 ? breathCount : 30;
               holdDuration = holdDuration != null && holdDuration > 0 ? holdDuration : 60;
 
-              widget.onSettingsChanged(SettingsModel(
+              widget.onSettingsChanged(TummoSettings(
                 targetBreathCount: breathCount,
                 targetHoldDuration: holdDuration,
                 enableAutoHold: _enableAutoHold,
                 enableSounds: _enableSounds,
                 breathThreshold: _tempThreshold,
-                breathingTechnique: _selectedTechnique,
               ));
 
               Navigator.of(context).pop();

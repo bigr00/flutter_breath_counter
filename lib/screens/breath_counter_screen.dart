@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import '../services/breath_detector.dart';
 import '../services/audio_service.dart';
-import '../widgets/breath_visualization.dart';
-import '../widgets/breath_counter_display.dart';
-import '../widgets/breath_controls.dart';
-import '../widgets/status_display.dart';
-import '../widgets/breath_hold_timer.dart';
+import '../services/breathing_techniques_service.dart';
 import '../widgets/breath_history_dialog.dart';
-import '../widgets/settings_dialog.dart';
 import '../models/breath_history_item.dart';
-import '../models/settings_model.dart';
+import '../models/breathing_technique.dart';
+
+// Import all technique widgets
+import '../widgets/techniques/tummo_technique_widget.dart';
+import '../widgets/techniques/box_technique_widget.dart';
+import '../widgets/techniques/fire_technique_widget.dart';
+import '../widgets/techniques/three_part_technique_widget.dart';
+
+// Import technique-specific settings dialogs
+import '../widgets/settings/tummo_settings_dialog.dart';
+import '../widgets/settings/box_breathing_settings_dialog.dart';
+import '../widgets/settings/fire_breath_settings_dialog.dart';
+import '../widgets/settings/three_part_breath_settings_dialog.dart';
 
 class BreathCounterScreen extends StatefulWidget {
   const BreathCounterScreen({Key? key}) : super(key: key);
@@ -21,12 +28,16 @@ class BreathCounterScreen extends StatefulWidget {
 class _BreathCounterScreenState extends State<BreathCounterScreen> {
   late BreathDetector _breathDetector;
   late AudioService _audioService;
+  late BreathingTechniquesService _breathingTechniquesService;
+
+  // Common state variables
   int _breathCount = 0;
   double _currentAmplitude = 0;
   bool _isCalibrating = false;
   bool _isReadyForCounting = false;
   bool _isCounting = false;
   Color _feedbackColor = Colors.grey;
+  String _currentInstruction = '';
 
   // Breath hold state
   bool _isHoldingBreath = false;
@@ -35,16 +46,43 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   // History tracking
   List<BreathHistoryItem> _historyItems = [];
 
-  // Settings
-  late SettingsModel _settings;
+  // Technique-specific settings
+  late TummoSettings _tummoSettings;
+  late BoxBreathingSettings _boxBreathingSettings;
+  late FireBreathSettings _fireBreathSettings;
+  late ThreePartBreathSettings _threePartBreathSettings;
+
+  // Selected technique
+  BreathingTechnique _selectedTechnique = BreathingTechnique.tummo;
 
   @override
   void initState() {
     super.initState();
-    _settings = SettingsModel();
+
+    // Initialize technique-specific settings
+    _tummoSettings = TummoSettings();
+    _boxBreathingSettings = BoxBreathingSettings();
+    _fireBreathSettings = FireBreathSettings();
+    _threePartBreathSettings = ThreePartBreathSettings();
+
     _audioService = AudioService();
     _initializeDetector();
     _audioService.initialize();
+
+    _breathingTechniquesService = BreathingTechniquesService(
+      onInstructionChange: (instruction) {
+        setState(() {
+          _currentInstruction = instruction;
+        });
+      },
+      onBreathHoldInstructionChange: (shouldHold) {
+        if (shouldHold && !_isHoldingBreath) {
+          _toggleBreathHold();
+        } else if (!shouldHold && _isHoldingBreath) {
+          _toggleBreathHold();
+        }
+      },
+    );
   }
 
   Future<void> _initializeDetector() async {
@@ -82,18 +120,18 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
         }
       },
       onBreathDetected: () {
-        if (_isCounting && mounted) {
+        if (_isCounting && mounted && _selectedTechnique.type == BreathingTechniqueType.tummo) {
           setState(() {
             _breathCount++;
           });
           _provideFeedback();
 
-          // Check if target breath count is reached
-          if (_settings.enableAutoHold &&
-              _breathCount >= _settings.targetBreathCount &&
+          // Check if target breath count is reached for Tummo
+          if (_tummoSettings.enableAutoHold &&
+              _breathCount >= _tummoSettings.targetBreathCount &&
               !_isHoldingBreath) {
             // Play sound if enabled
-            if (_settings.enableSounds) {
+            if (_tummoSettings.enableSounds) {
               _audioService.playBreathCountReached();
             }
 
@@ -103,7 +141,7 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
             // Notify user
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Target breath count (${_settings.targetBreathCount}) reached! Starting breath hold.'),
+                content: Text('Target breath count (${_tummoSettings.targetBreathCount}) reached! Starting breath hold.'),
                 duration: const Duration(seconds: 2),
               ),
             );
@@ -149,12 +187,12 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
             _breathHoldDuration = duration;
           });
 
-          // Check if target hold duration is reached
+          // Check if target hold duration is reached for Tummo
           if (isHolding &&
-              duration >= _settings.targetHoldDuration &&
-              _settings.enableAutoHold) {
+              duration >= _tummoSettings.targetHoldDuration &&
+              _tummoSettings.enableAutoHold) {
             // Play sound if enabled
-            if (_settings.enableSounds) {
+            if (_tummoSettings.enableSounds) {
               _audioService.playHoldTimerReached();
             }
 
@@ -167,7 +205,7 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
             // Notify user
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Target hold duration (${_settings.targetHoldDuration} seconds) reached!'),
+                content: Text('Target hold duration (${_tummoSettings.targetHoldDuration} seconds) reached!'),
                 duration: const Duration(seconds: 2),
               ),
             );
@@ -178,19 +216,37 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
 
     await _breathDetector.initialize();
 
-    Future.delayed(Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         _breathDetector.startCalibration();
       }
     });
   }
 
-  void _toggleCounting() {
+  void _onTechniqueSelected(BreathingTechnique technique) {
+    // Stop current session if active
     if (_isCounting) {
       _stopCounting();
-    } else {
-      _startCounting();
     }
+
+    setState(() {
+      _selectedTechnique = technique;
+      // Reset counters when changing techniques
+      _breathCount = 0;
+      _breathHoldDuration = 0;
+      if (_isHoldingBreath) {
+        _breathDetector.stopBreathHold();
+        _isHoldingBreath = false;
+      }
+    });
+
+    // Notify the user
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Switched to ${technique.name} breathing'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _startCounting() {
@@ -198,14 +254,22 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
       setState(() {
         _isCounting = true;
       });
-      _breathDetector.startBreathDetection();
+
+      // Only start breath detection for Tummo
+      if (_selectedTechnique.type == BreathingTechniqueType.tummo) {
+        _breathDetector.startBreathDetection();
+      }
+
+      _breathingTechniquesService.startTechnique(_selectedTechnique.type);
     }
   }
 
   void _stopCounting() {
     if (_isCounting) {
       // Save the session to history when stopping
-      _saveToHistory();
+      if (_selectedTechnique.type == BreathingTechniqueType.tummo) {
+        _saveToHistory();
+      }
 
       setState(() {
         _isCounting = false;
@@ -216,13 +280,19 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
           _breathDetector.stopBreathHold();
         }
       });
-      _breathDetector.stopBreathDetection();
+
+      if (_selectedTechnique.type == BreathingTechniqueType.tummo) {
+        _breathDetector.stopBreathDetection();
+      }
+
+      _breathingTechniquesService.stopTechnique();
     }
   }
 
   void _resetCounter() {
     // Save current session to history before resetting if there's data to save
-    if (_breathCount > 0 || _breathHoldDuration > 0) {
+    if (_selectedTechnique.type == BreathingTechniqueType.tummo &&
+        (_breathCount > 0 || _breathHoldDuration > 0)) {
       _saveToHistory();
     }
 
@@ -235,13 +305,21 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
       }
       _breathHoldDuration = 0;
     });
-    _breathDetector.resetState();
+
+    if (_selectedTechnique.type == BreathingTechniqueType.tummo) {
+      _breathDetector.resetState();
+    }
+
+    // If we're in the middle of a technique, restart it
+    if (_isCounting) {
+      _breathingTechniquesService.startTechnique(_selectedTechnique.type);
+    }
   }
 
   void _toggleBreathHold() {
     if (_isHoldingBreath) {
       // If we're ending a breath hold with a duration, save to history
-      if (_breathHoldDuration > 0) {
+      if (_breathHoldDuration > 0 && _selectedTechnique.type == BreathingTechniqueType.tummo) {
         _saveToHistory();
       }
 
@@ -256,7 +334,7 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   }
 
   void _saveToHistory() {
-    // Only save if there are breaths or a hold
+    // Only save if there are breaths or a hold for Tummo technique
     if (_breathCount > 0 || _breathHoldDuration > 0) {
       setState(() {
         _historyItems.add(
@@ -303,7 +381,7 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
       _isCounting = false;
     });
 
-    Future.delayed(Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         _breathDetector.startCalibration();
       }
@@ -319,99 +397,225 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
     );
   }
 
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => SettingsDialog(
-        settings: _settings,
-        onSettingsChanged: (newSettings) {
-          setState(() {
-            _settings = newSettings;
-          });
-          _breathDetector.setBreathThreshold(newSettings.breathThreshold);
-        },
-        onRecalibrate: _recalibrate,
-        onResetMaxAmplitude: () {
-          _breathDetector.resetMaxAmplitude();
-        },
-      ),
-    );
+  void _showTechniqueSettings() {
+    switch (_selectedTechnique.type) {
+      case BreathingTechniqueType.tummo:
+        showDialog(
+          context: context,
+          builder: (context) => TummoSettingsDialog(
+            settings: _tummoSettings,
+            onSettingsChanged: (newSettings) {
+              setState(() {
+                _tummoSettings = newSettings;
+              });
+              _breathDetector.setBreathThreshold(newSettings.breathThreshold);
+            },
+            onRecalibrate: _recalibrate,
+            onResetMaxAmplitude: () {
+              _breathDetector.resetMaxAmplitude();
+            },
+          ),
+        );
+        break;
+
+      case BreathingTechniqueType.boxBreathing:
+        showDialog(
+          context: context,
+          builder: (context) => BoxBreathingSettingsDialog(
+            settings: _boxBreathingSettings,
+            onSettingsChanged: (newSettings) {
+              setState(() {
+                _boxBreathingSettings = newSettings;
+              });
+            },
+          ),
+        );
+        break;
+
+      case BreathingTechniqueType.fireBreath:
+        showDialog(
+          context: context,
+          builder: (context) => FireBreathSettingsDialog(
+            settings: _fireBreathSettings,
+            onSettingsChanged: (newSettings) {
+              setState(() {
+                _fireBreathSettings = newSettings;
+              });
+            },
+          ),
+        );
+        break;
+
+      case BreathingTechniqueType.threePartBreath:
+        showDialog(
+          context: context,
+          builder: (context) => ThreePartBreathSettingsDialog(
+            settings: _threePartBreathSettings,
+            onSettingsChanged: (newSettings) {
+              setState(() {
+                _threePartBreathSettings = newSettings;
+              });
+            },
+          ),
+        );
+        break;
+    }
+  }
+
+  // This method renders the appropriate technique widget based on the selected technique
+  Widget _buildActiveTechniqueWidget() {
+    switch (_selectedTechnique.type) {
+      case BreathingTechniqueType.tummo:
+        return TummoBreathWidget(
+          settings: _tummoSettings,
+          currentAmplitude: _currentAmplitude,
+          feedbackColor: _feedbackColor,
+          isCalibrating: _isCalibrating,
+          isReadyForCounting: _isReadyForCounting,
+          isCounting: _isCounting,
+          isHoldingBreath: _isHoldingBreath,
+          breathCount: _breathCount,
+          breathHoldDuration: _breathHoldDuration,
+          currentInstruction: _currentInstruction,
+          onStart: _startCounting,
+          onStop: _stopCounting,
+          onReset: _resetCounter,
+          onToggleBreathHold: _toggleBreathHold,
+        );
+
+      case BreathingTechniqueType.boxBreathing:
+        return BoxBreathingWidget(
+          settings: _boxBreathingSettings,
+          isActive: _isCounting,
+          onStart: _startCounting,
+          onStop: _stopCounting,
+          onReset: _resetCounter,
+        );
+
+      case BreathingTechniqueType.fireBreath:
+        return FireBreathWidget(
+          settings: _fireBreathSettings,
+          isActive: _isCounting,
+          onStart: _startCounting,
+          onStop: _stopCounting,
+          onReset: _resetCounter,
+        );
+
+      case BreathingTechniqueType.threePartBreath:
+        return ThreePartBreathWidget(
+          settings: _threePartBreathSettings,
+          isActive: _isCounting,
+          onStart: _startCounting,
+          onStop: _stopCounting,
+          onReset: _resetCounter,
+        );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Breath Counter'),
+        title: Text('${_selectedTechnique.name} Breathing'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: _showTechniqueSettings,
+            tooltip: 'Technique Settings',
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: _showHistoryDialog,
             tooltip: 'View history',
           ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _showSettingsDialog,
-            tooltip: 'Settings',
-          ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                const SizedBox(height: 30),
-                BreathVisualization(
-                  currentAmplitude: _currentAmplitude,
-                  feedbackColor: _feedbackColor,
+      body: Row(
+        children: [
+          // Main breathing technique area (left side)
+          Expanded(
+            flex: 3,
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: _buildActiveTechniqueWidget(),
                 ),
-                const SizedBox(height: 30),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Breath counter
-                      const Spacer(),
-                      BreathCounterDisplay(
-                        breathCount: _breathCount,
-                        targetCount: _settings.enableAutoHold ? _settings.targetBreathCount : null,
-                      ),
-                      const SizedBox(width: 40), // Reduced spacing between counters
-                      // Breath hold timer
-                      BreathHoldTimer(
-                        isActive: _isHoldingBreath,
-                        durationInSeconds: _breathHoldDuration,
-                        targetDuration: _settings.enableAutoHold ? _settings.targetHoldDuration : null,
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                StatusDisplay(
-                  isCalibrating: _isCalibrating,
-                  feedbackColor: _feedbackColor,
-                ),
-                const SizedBox(height: 20),
-                BreathControls(
-                  isReadyForCounting: _isReadyForCounting,
-                  isCounting: _isCounting,
-                  isHoldingBreath: _isHoldingBreath,
-                  onStart: _startCounting,
-                  onStop: _stopCounting,
-                  onReset: _resetCounter,
-                  onToggleBreathHold: _toggleBreathHold,
-                ),
-                const SizedBox(height: 20),
-              ],
+              ),
             ),
           ),
-        ),
+
+          // Technique selector (right side)
+          SizedBox(
+            width: 200,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                border: Border(
+                  left: BorderSide(
+                    color: Colors.grey[300]!,
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Technique selector header
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Colors.grey[300]!,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: const Text(
+                      'Breathing Techniques',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  // Technique selector list
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: BreathingTechnique.allTechniques.length,
+                      itemBuilder: (context, index) {
+                        final technique = BreathingTechnique.allTechniques[index];
+                        final isSelected = _selectedTechnique.type == technique.type;
+
+                        return ListTile(
+                          title: Text(
+                            technique.name,
+                            style: TextStyle(
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? Colors.blue : null,
+                            ),
+                          ),
+                          subtitle: Text(
+                            technique.description,
+                            style: const TextStyle(fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                          selected: isSelected,
+                          selectedTileColor: Colors.blue.withOpacity(0.1),
+                          onTap: () => _onTechniqueSelected(technique),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -419,11 +623,13 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   @override
   void dispose() {
     // Save any unsaved session before disposing
-    if (_breathCount > 0 || _breathHoldDuration > 0) {
+    if (_selectedTechnique.type == BreathingTechniqueType.tummo &&
+        (_breathCount > 0 || _breathHoldDuration > 0)) {
       _saveToHistory();
     }
     _breathDetector.dispose();
     _audioService.dispose();
+    _breathingTechniquesService.dispose();
     super.dispose();
   }
 }

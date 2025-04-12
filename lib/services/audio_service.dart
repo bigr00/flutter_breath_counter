@@ -11,8 +11,8 @@ class AudioService {
 
     try {
       // Load the audio files from assets
-      await _breathCountPlayer.setAsset('assets/sounds/glass-ting.mp3');
-      await _holdTimerPlayer.setAsset('assets/sounds/glass-ting.mp3');
+      await _breathCountPlayer.setAsset('assets/sounds/count_finished.mp3');
+      await _holdTimerPlayer.setAsset('assets/sounds/hold_finished.mp3');
       _isInitialized = true;
     } catch (e) {
       print('Error initializing audio: $e');
