@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/breath_detectors/tummo_breath_detector.dart';
 import '../services/breath_detectors/fire_breath_detector.dart';
 import '../services/audio_service.dart';
-import '../services/breathing_techniques_service.dart';
 import '../widgets/breath_history_dialog.dart';
 import '../models/breath_history_item.dart';
 import '../models/breathing_technique.dart';
@@ -32,7 +31,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   FireBreathDetector? _fireBreathDetector;
 
   late AudioService _audioService;
-  late BreathingTechniquesService _breathingTechniquesService;
 
   // Common state variables
   int _breathCount = 0;
@@ -41,7 +39,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
   bool _isReadyForCounting = false;
   bool _isCounting = false;
   Color _feedbackColor = Colors.grey;
-  String _currentInstruction = '';
 
   // Breath hold state
   bool _isHoldingBreath = false;
@@ -72,21 +69,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
     _audioService = AudioService();
     _initializeDetector();
     _audioService.initialize();
-
-    _breathingTechniquesService = BreathingTechniquesService(
-      onInstructionChange: (instruction) {
-        setState(() {
-          _currentInstruction = instruction;
-        });
-      },
-      onBreathHoldInstructionChange: (shouldHold) {
-        if (shouldHold && !_isHoldingBreath) {
-          _toggleBreathHold();
-        } else if (!shouldHold && _isHoldingBreath) {
-          _toggleBreathHold();
-        }
-      },
-    );
   }
 
   Future<void> _initializeDetector() async {
@@ -385,7 +367,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
           break;
       }
 
-      _breathingTechniquesService.startTechnique(_selectedTechnique.type);
     }
   }
 
@@ -420,7 +401,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
           break;
       }
 
-      _breathingTechniquesService.stopTechnique();
     }
   }
 
@@ -454,10 +434,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
         break;
     }
 
-    // If we're in the middle of a technique, restart it
-    if (_isCounting) {
-      _breathingTechniquesService.startTechnique(_selectedTechnique.type);
-    }
   }
 
   void _toggleBreathHold() {
@@ -655,7 +631,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
           isHoldingBreath: _isHoldingBreath,
           breathCount: _breathCount,
           breathHoldDuration: _breathHoldDuration,
-          currentInstruction: _currentInstruction,
           onStart: _startCounting,
           onStop: _stopCounting,
           onReset: _resetCounter,
@@ -680,7 +655,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
           isReadyForCounting: _isReadyForCounting,
           isCounting: _isCounting,
           breathCount: _breathCount,
-          currentInstruction: _currentInstruction,
           onStart: _startCounting,
           onStop: _stopCounting,
           onReset: _resetCounter,
@@ -818,7 +792,6 @@ class _BreathCounterScreenState extends State<BreathCounterScreen> {
     _disposeCurrentDetector();
 
     _audioService.dispose();
-    _breathingTechniquesService.dispose();
     super.dispose();
   }
 }

@@ -32,7 +32,6 @@ class TummoBreathWidget extends StatelessWidget {
   final bool isHoldingBreath;
   final int breathCount;
   final int breathHoldDuration;
-  final String currentInstruction;
 
   final VoidCallback onStart;
   final VoidCallback onStop;
@@ -50,7 +49,6 @@ class TummoBreathWidget extends StatelessWidget {
     required this.isHoldingBreath,
     required this.breathCount,
     required this.breathHoldDuration,
-    required this.currentInstruction,
     required this.onStart,
     required this.onStop,
     required this.onReset,
@@ -96,18 +94,6 @@ class TummoBreathWidget extends StatelessWidget {
           currentAmplitude: currentAmplitude,
           feedbackColor: feedbackColor,
         ),
-        if (currentInstruction.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 10.0),
-            child: Text(
-              currentInstruction,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: feedbackColor,
-              ),
-            ),
-          ),
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20.0),

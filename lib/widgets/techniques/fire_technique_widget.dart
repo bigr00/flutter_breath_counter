@@ -22,7 +22,6 @@ class FireBreathWidget extends StatefulWidget {
   final bool isReadyForCounting;
   final bool isCounting;
   final int breathCount;
-  final String currentInstruction;
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onReset;
@@ -36,7 +35,6 @@ class FireBreathWidget extends StatefulWidget {
     required this.isReadyForCounting,
     required this.isCounting,
     required this.breathCount,
-    required this.currentInstruction,
     required this.onStart,
     required this.onStop,
     required this.onReset,
@@ -143,20 +141,6 @@ class _FireBreathWidgetState extends State<FireBreathWidget> {
             style: TextStyle(
               fontSize: 18,
               color: widget.feedbackColor,
-            ),
-          ),
-
-        // Current instruction from breathing technique service
-        if (widget.currentInstruction.isNotEmpty && widget.isCounting)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10.0),
-            child: Text(
-              widget.currentInstruction,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: widget.feedbackColor,
-              ),
             ),
           ),
 
