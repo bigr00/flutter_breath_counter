@@ -1,22 +1,18 @@
 import 'dart:async';
 import '../models/breathing_technique.dart';
+import '../services/audio_service.dart';
 
 class BreathingTechniquesService {
   final Function(String) onInstructionChange;
   final Function(bool) onBreathHoldInstructionChange;
 
-  BreathingTechniquesService({
-    required this.onInstructionChange,
-    required this.onBreathHoldInstructionChange,
-  });
+  // Audio service for all breathing techniques
+  final AudioService _audioService = AudioService();
 
+  // State tracking
   Timer? _instructionTimer;
   BreathingTechniqueType? _currentTechnique;
   bool _isActive = false;
-
-  // Track box breathing state
-  int _boxPhase = 0;
-  int _boxPhaseTimer = 0;
 
   // Track fire breath state
   int _fireBreathCount = 0;
@@ -24,6 +20,17 @@ class BreathingTechniquesService {
 
   // Track three-part breath state
   int _threePartPhase = 0; // 0: belly, 1: ribs, 2: chest, 3: exhale
+
+  BreathingTechniquesService({
+    required this.onInstructionChange,
+    required this.onBreathHoldInstructionChange,
+  }) {
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    await _audioService.initialize();
+  }
 
   void startTechnique(BreathingTechniqueType technique) {
     // Clean up any previous timers
@@ -36,7 +43,8 @@ class BreathingTechniquesService {
         _startTummoBreathing();
         break;
       case BreathingTechniqueType.boxBreathing:
-        _startBoxBreathing();
+      // Box breathing is now handled completely in the widget
+        onInstructionChange('Box breathing active');
         break;
       case BreathingTechniqueType.fireBreath:
         _startFireBreath();
@@ -60,46 +68,8 @@ class BreathingTechniquesService {
     onInstructionChange('Take deep, powerful breaths');
   }
 
-  void _startBoxBreathing() {
-    // Box breathing implementation with 4 phases
-    _boxPhase = 0;
-    _boxPhaseTimer = 0;
-
-    const List<String> phaseInstructions = [
-      'Inhale slowly',     // Phase 0
-      'Hold your breath',  // Phase 1
-      'Exhale slowly',     // Phase 2
-      'Hold empty lungs'   // Phase 3
-    ];
-
-    // Default 4-second phases
-    const int phaseDuration = 4;
-
-    _instructionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isActive) {
-        timer.cancel();
-        return;
-      }
-
-      // Update instruction based on current phase
-      onInstructionChange('${phaseInstructions[_boxPhase]} (${phaseDuration - _boxPhaseTimer})');
-
-      // Update breath hold instruction for accurate visualization
-      onBreathHoldInstructionChange(_boxPhase == 1 || _boxPhase == 3);
-
-      // Increment phase timer
-      _boxPhaseTimer++;
-
-      // Check if it's time to move to the next phase
-      if (_boxPhaseTimer >= phaseDuration) {
-        _boxPhaseTimer = 0;
-        _boxPhase = (_boxPhase + 1) % 4; // Cycle through the 4 phases
-      }
-    });
-  }
-
   void _startFireBreath() {
-    // Fire Breath implementation
+    // Reset state
     _fireBreathCount = 0;
     _fireBreathRound = 1;
 
@@ -122,6 +92,9 @@ class BreathingTechniquesService {
         if (_fireBreathCount > 0 && _fireBreathCount % 2 == 1) {
           // Check if we've completed a round (30 full breaths)
           if (_fireBreathCount >= 60) { // 60 half-breaths = 30 full breaths
+            // Play sound at round completion
+            _audioService.playBreathCountReached();
+
             _fireBreathCount = 0;
             _fireBreathRound++;
 
@@ -143,6 +116,7 @@ class BreathingTechniquesService {
   }
 
   void _startThreePartBreath() {
+    // Reset state
     _threePartPhase = 0;
 
     const List<String> phaseInstructions = [
@@ -170,6 +144,9 @@ class BreathingTechniquesService {
 
       // Check if it's time to move to the next phase
       if (phaseTimer >= phaseDurations[_threePartPhase]) {
+        // Play sound at phase transition
+        _audioService.playPhaseComplete();
+
         phaseTimer = 0;
         _threePartPhase = (_threePartPhase + 1) % 4; // Cycle through the 4 phases
       }
@@ -178,5 +155,6 @@ class BreathingTechniquesService {
 
   void dispose() {
     _instructionTimer?.cancel();
+    _audioService.dispose();
   }
 }
