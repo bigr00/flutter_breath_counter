@@ -36,6 +36,7 @@ A Flutter application that detects and counts breaths using the device's microph
 - Dart 2.16.0 or higher
 - Android Studio / VS Code with Flutter extensions
 - iOS or Android device with microphone access
+- Docker (for web deployment)
 
 ### Installation
 
@@ -58,6 +59,37 @@ A Flutter application that detects and counts breaths using the device's microph
    ```
    flutter run
    ```
+
+### Web Deployment
+
+The app includes a Dockerfile for easy web deployment:
+
+1. Build the Docker image:
+   ```
+   docker build -t breath-counter .
+   ```
+
+2. Run the container:
+   ```
+   docker run -p 8080:8080 breath-counter
+   ```
+
+3. Access the web app at `http://localhost:8080`
+
+#### Deployment to Cloud Services
+
+The Docker configuration is ready for deployment to cloud platforms like:
+
+- Fly.io
+- Google Cloud Run
+- AWS App Runner
+- DigitalOcean App Platform
+
+Example deployment to Fly.io:
+```
+fly launch
+fly deploy
+```
 
 ## Usage
 
@@ -137,6 +169,13 @@ This app requires the following permissions:
 - **False detections**: Lower sensitivity or recalibrate in a quieter environment
 - **Calibration issues**: Ensure you're in a relatively quiet environment during startup
 - **Technique timing problems**: Adjust the timing parameters in the technique settings
+
+### Web Version Specifics
+
+- **Microphone access**: Ensure you've granted microphone permissions in your browser
+- **Browser compatibility**: Chrome and Edge offer best microphone support for WebRTC APIs
+- **Mobile web**: The web version works on mobile browsers, but native apps provide better performance
+- **Audio issues in web**: If detection is inconsistent in web browsers, try clearing site permissions and reloading
 
 ## Contributing
 
