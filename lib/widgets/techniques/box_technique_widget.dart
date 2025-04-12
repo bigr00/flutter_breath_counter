@@ -95,18 +95,16 @@ class _BoxBreathingWidgetState extends State<BoxBreathingWidget> with SingleTick
     }
   }
 
-  void _playPhaseCompleteSound() {
+  void _playPhaseCompleteSound() async {
+    print('Playing sound');
     if (_isAudioInitialized && widget.settings.enableSounds) {
       try {
-        _phaseCompletePlayer.stop();
-        _phaseCompletePlayer.seek(Duration.zero);
-        _phaseCompletePlayer.play();
+        final player = AudioPlayer();
+        await player.setAsset('assets/sounds/soft-ting.mp3');
+        await player.play();
+        player.dispose(); // Dispose after playback finishes
       } catch (e) {
         print('Error playing sound: $e');
-        // Try to reinitialize audio
-        _initAudio().then((_) {
-          _phaseCompletePlayer.play();
-        });
       }
     }
   }
@@ -194,21 +192,19 @@ class _BoxBreathingWidgetState extends State<BoxBreathingWidget> with SingleTick
     // Initialize seconds remaining
     _secondsRemaining = phaseDuration;
 
-    // Start a new timer that counts down one second at a time
     _breathTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
-        setState(() {
-          if (_secondsRemaining > 1) {
-            _secondsRemaining--;
+          _secondsRemaining--;
+          if (_secondsRemaining <= 0) {
+            print('Beep end of phase $_currentPhase');
+            _playPhaseCompleteSound();
+            timer.cancel();
+            _moveToNextPhase();
           } else {
-            // We're at the last second, so prepare to transition
-            timer.cancel(); // Cancel current timer
-            _moveToNextPhase(); // Move to next phase
+            setState(() {});
           }
-        });
       }
     });
-
     // Start animation for current phase
     _animationController.reset();
     _animationController.duration = Duration(seconds: phaseDuration);
@@ -216,9 +212,6 @@ class _BoxBreathingWidgetState extends State<BoxBreathingWidget> with SingleTick
   }
 
   void _moveToNextPhase() {
-    // Play sound at each phase transition
-    _playPhaseCompleteSound();
-
     // Move to next phase
     int previousPhase = _currentPhase;
     _currentPhase = (_currentPhase + 1) % 4;
