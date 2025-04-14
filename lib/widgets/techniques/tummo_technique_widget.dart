@@ -5,22 +5,25 @@ import '../../../widgets/breath_controls.dart';
 import '../../../widgets/status_display.dart';
 import '../../../widgets/breath_hold_timer.dart';
 
-// Tummo-specific settings
+
 class TummoSettings {
   int targetBreathCount;
   int targetHoldDuration;
-  bool enableAutoHold;
+  bool useAutomaticBreathCounterAndHolder;
+  bool stopAutomaticBreathHold;
   bool enableSounds;
   double breathThreshold;
 
   TummoSettings({
     this.targetBreathCount = 40,
     this.targetHoldDuration = 90,
-    this.enableAutoHold = true,
+    this.useAutomaticBreathCounterAndHolder = true,
+    this.stopAutomaticBreathHold = true,
     this.enableSounds = true,
     this.breathThreshold = 0.15,
   });
 }
+
 
 class TummoBreathWidget extends StatelessWidget {
   final TummoSettings settings;
@@ -61,7 +64,7 @@ class TummoBreathWidget extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
         const SizedBox(height: 20),
-        // Technique instruction card
+
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
@@ -89,7 +92,7 @@ class TummoBreathWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        // Visualization
+
         BreathVisualization(
           currentAmplitude: currentAmplitude,
           feedbackColor: feedbackColor,
@@ -101,18 +104,18 @@ class TummoBreathWidget extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Breath counter
+
               const Spacer(),
               BreathCounterDisplay(
                 breathCount: breathCount,
-                targetCount: settings.enableAutoHold ? settings.targetBreathCount : null,
+                targetCount: settings.useAutomaticBreathCounterAndHolder ? settings.targetBreathCount : null,
               ),
-              const SizedBox(width: 40), // Reduced spacing between counters
-              // Breath hold timer
+              const SizedBox(width: 40),
+
               BreathHoldTimer(
                 isActive: isHoldingBreath,
                 durationInSeconds: breathHoldDuration,
-                targetDuration: settings.enableAutoHold ? settings.targetHoldDuration : null,
+                targetDuration: settings.useAutomaticBreathCounterAndHolder ? settings.targetHoldDuration : null,
               ),
               const Spacer(),
             ],

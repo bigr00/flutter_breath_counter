@@ -23,7 +23,8 @@ class TummoSettingsDialog extends StatefulWidget {
 class _TummoSettingsDialogState extends State<TummoSettingsDialog> {
   late TextEditingController _breathCountController;
   late TextEditingController _holdDurationController;
-  late bool _enableAutoHold;
+  late bool _useAutomaticBreathCounterAndHolder;
+  late bool _stopAutomaticBreathHold;
   late bool _enableSounds;
   late double _tempThreshold;
 
@@ -32,7 +33,8 @@ class _TummoSettingsDialogState extends State<TummoSettingsDialog> {
     super.initState();
     _breathCountController = TextEditingController(text: widget.settings.targetBreathCount.toString());
     _holdDurationController = TextEditingController(text: widget.settings.targetHoldDuration.toString());
-    _enableAutoHold = widget.settings.enableAutoHold;
+    _useAutomaticBreathCounterAndHolder = widget.settings.useAutomaticBreathCounterAndHolder;
+    _stopAutomaticBreathHold = widget.settings.stopAutomaticBreathHold;
     _enableSounds = widget.settings.enableSounds;
     _tempThreshold = widget.settings.breathThreshold;
   }
@@ -80,10 +82,47 @@ class _TummoSettingsDialogState extends State<TummoSettingsDialog> {
               ],
             ),
             const SizedBox(height: 20),
-            const Text('Tummo Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Tummo Automation', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
 
-            // Target breath count
+
+            SwitchListTile(
+              title: const Text('Use Automatic Counter/Hold'),
+              subtitle: const Text('Auto count breaths and start/stop hold based on targets'),
+              value: _useAutomaticBreathCounterAndHolder,
+              onChanged: (value) {
+                setState(() {
+                  _useAutomaticBreathCounterAndHolder = value;
+
+                  if (!value) {
+                    _stopAutomaticBreathHold = true;
+                  }
+                });
+              },
+            ),
+
+
+            AnimatedOpacity(
+              opacity: _useAutomaticBreathCounterAndHolder ? 1.0 : 0.5,
+              duration: const Duration(milliseconds: 300),
+              child: SwitchListTile(
+                title: const Text('Stop Automatic Breath Hold'),
+                subtitle: const Text('Automatically stop hold when target duration is reached (if OFF, hold continues indefinitely)'),
+                value: _stopAutomaticBreathHold,
+
+                onChanged: _useAutomaticBreathCounterAndHolder ? (value) {
+                  setState(() {
+                    _stopAutomaticBreathHold = value;
+                  });
+                } : null,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+            const Text('Targets (Used for Automation)', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+
+
             Padding(
               padding: const EdgeInsets.only(bottom: 10.0),
               child: TextFormField(
@@ -95,10 +134,11 @@ class _TummoSettingsDialogState extends State<TummoSettingsDialog> {
                 ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                enabled: _useAutomaticBreathCounterAndHolder,
               ),
             ),
 
-            // Target hold duration
+
             Padding(
               padding: const EdgeInsets.only(bottom: 15.0),
               child: TextFormField(
@@ -110,20 +150,14 @@ class _TummoSettingsDialogState extends State<TummoSettingsDialog> {
                 ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                enabled: _useAutomaticBreathCounterAndHolder,
               ),
             ),
 
-            // Automation switches
-            SwitchListTile(
-              title: const Text('Auto Breath Hold'),
-              subtitle: const Text('Automatically start hold after reaching target breath count'),
-              value: _enableAutoHold,
-              onChanged: (value) {
-                setState(() {
-                  _enableAutoHold = value;
-                });
-              },
-            ),
+            const SizedBox(height: 10),
+            const Text('Feedback', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 5),
+
 
             SwitchListTile(
               title: const Text('Audio Alerts'),
@@ -168,23 +202,24 @@ class _TummoSettingsDialogState extends State<TummoSettingsDialog> {
         ),
         TextButton(
           onPressed: () {
-            // Unfocus all text fields before saving
+
             FocusScope.of(context).unfocus();
 
-            // Small delay to allow unfocus to complete
-            Future.delayed(Duration(milliseconds: 50), () {
-              // Validate and save settings
+
+            Future.delayed(const Duration(milliseconds: 50), () {
+
               int? breathCount = int.tryParse(_breathCountController.text);
               int? holdDuration = int.tryParse(_holdDurationController.text);
 
-              // Use default values if parsing fails
-              breathCount = breathCount != null && breathCount > 0 ? breathCount : 30;
-              holdDuration = holdDuration != null && holdDuration > 0 ? holdDuration : 60;
+
+              breathCount = breathCount != null && breathCount > 0 ? breathCount : 40;
+              holdDuration = holdDuration != null && holdDuration > 0 ? holdDuration : 90;
 
               widget.onSettingsChanged(TummoSettings(
                 targetBreathCount: breathCount,
                 targetHoldDuration: holdDuration,
-                enableAutoHold: _enableAutoHold,
+                useAutomaticBreathCounterAndHolder: _useAutomaticBreathCounterAndHolder,
+                stopAutomaticBreathHold: _stopAutomaticBreathHold,
                 enableSounds: _enableSounds,
                 breathThreshold: _tempThreshold,
               ));
